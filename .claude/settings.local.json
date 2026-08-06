@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm -v)",
+      "Read(//usr/local/bin/**)",
+      "Read(//Users/aziz/.volta/**)",
+      "Bash(python3 -V)",
+      "Skill(claude-api)",
+      "Skill(claude-api:*)",
+      "Bash(curl -s -i http://127.0.0.1:8787 --max-time 10)",
+      "Bash(curl -s http://127.0.0.1:8787/src/ui/app.js)"
+    ]
+  }
+}
