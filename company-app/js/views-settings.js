@@ -51,10 +51,12 @@
       <div class="page-head"><div><h1>المستخدمون والصلاحيات</h1><p>كل مستخدم مرتبط بسجله الوظيفي. الصلاحيات تحدد ما يظهر له وما يمكنه فعله.</p></div>
         ${A.can('settings') ? `<button class="btn primary" id="add">${A.icon('plus')}إضافة مستخدم</button>` : ''}</div>
       ${guard()}
-      <div class="card"><div class="table-wrap"><table class="t"><thead><tr><th>المستخدم</th><th>الإدارة</th>${PERMS.map(([, t]) => `<th style="text-align:center">${t}</th>`).join('')}</tr></thead><tbody>
+      <div class="card"><div class="table-wrap"><table class="t"><thead><tr><th>المستخدم</th><th>الإدارة</th>${PERMS.map(([, t]) => `<th style="text-align:center">${t}</th>`).join('')}<th>التوقيع</th></tr></thead><tbody>
         ${A.state.users.map((u) => { const e = A.emp(u.empId); return `<tr><td><div class="row" style="flex-wrap:nowrap">${A.avatar(e.name)}<div><div class="cell-main">${esc(e.name)}</div><div class="cell-sub">${esc(e.job)}</div></div></div></td><td class="small">${esc(A.deptName(e.dept))}</td>
-          ${PERMS.map(([k]) => `<td style="text-align:center"><input type="checkbox" data-u="${u.empId}" data-p="${k}" ${u.perms.includes(k) ? 'checked' : ''} ${A.can('settings') ? '' : 'disabled'}></td>`).join('')}</tr>`; }).join('')}
+          ${PERMS.map(([k]) => `<td style="text-align:center"><input type="checkbox" data-u="${u.empId}" data-p="${k}" ${u.perms.includes(k) ? 'checked' : ''} ${A.can('settings') ? '' : 'disabled'}></td>`).join('')}
+          <td><div class="row" style="flex-wrap:nowrap;gap:6px"><span class="sig-thumb">${A.signatureHtml(u.empId)}</span>${A.can('settings') || u.empId === A.state.currentUserId ? `<label class="btn sm" style="cursor:pointer">${u.signature ? 'تغيير' : 'رفع'}<input type="file" accept="image/*" data-sig="${u.empId}" hidden></label>${u.signature ? `<button class="btn sm ghost danger" data-sig-rm="${u.empId}" title="حذف">${A.icon('trash')}</button>` : ''}` : ''}</div></td></tr>`; }).join('')}
       </tbody></table></div></div>
+      <div class="note mt">${A.icon('edit')}<div>التوقيع يظهر على الخطاب مع ختم الشركة فقط عند اكتمال الاعتماد. ارفع صورة التوقيع بخلفية بيضاء أو شفافة (PNG). إن لم يُرفع توقيع يظهر توقيع تجريبي.</div></div>
       <div class="note mt">${A.icon('shield')}<div>في النسخة النهائية: الدخول الموحّد (SSO) أو نفاذ، المصادقة الثنائية، وسجل تدقيق لكل عملية.</div></div>`,
     mount(root) {
       root.querySelectorAll('[data-u]').forEach((c) => c.addEventListener('change', () => {
@@ -62,6 +64,11 @@
         u.perms = c.checked ? [...u.perms, c.dataset.p] : u.perms.filter((p) => p !== c.dataset.p);
         A.save(); A.toast('حُدّثت الصلاحيات');
       }));
+      root.querySelectorAll('[data-sig]').forEach((i) => i.addEventListener('change', () => {
+        A.readImage(i.files[0], 500).then((url) => { A.user(i.dataset.sig).signature = url; A.save(); A.toast('حُفظ التوقيع'); A.render(); })
+          .catch(() => A.toast('اختر ملف صورة صالحاً', 'alert'));
+      }));
+      root.querySelectorAll('[data-sig-rm]').forEach((b) => b.addEventListener('click', () => { delete A.user(b.dataset.sigRm).signature; A.save(); A.toast('حُذف التوقيع'); A.render(); }));
       const add = root.querySelector('#add');
       if (add) add.addEventListener('click', () => {
         const free = A.state.employees.filter((e) => !A.user(e.id));
@@ -106,17 +113,25 @@
 
   A.route('/settings/letterhead', () => {
     const s = A.state.settings;
-    const F = [['companyAr', 'اسم الشركة (عربي)'], ['companyEn', 'اسم الشركة (إنجليزي)'], ['cr', 'رقم السجل التجاري'], ['vat', 'الرقم الضريبي'], ['address', 'العنوان'], ['phone', 'الهاتف'], ['email', 'البريد الرسمي']];
-    const sample = { type: 'external', subject: 'نموذج للمعاينة', toEntity: 'اسم الجهة', body: 'هذا نص تجريبي لمعاينة شكل الترويسة الرسمية على الخطابات الصادرة.', attachments: [], steps: [{ userId: 'E1001' }], classification: 'عادي', priority: 'عادي', number: null };
+    const F = [['companyAr', 'اسم الشركة'], ['cr', 'رقم السجل التجاري'], ['vat', 'الرقم الضريبي'], ['address', 'العنوان'], ['phone', 'الهاتف'], ['email', 'البريد الرسمي']];
+    const sample = { type: 'external', subject: 'نموذج للمعاينة', toEntity: 'اسم الجهة', body: 'هذا نص تجريبي لمعاينة شكل الترويسة الرسمية على الخطابات الصادرة.', attachments: [], steps: [{ userId: 'E1001' }], classification: 'عادي', priority: 'عادي', number: 'ص/' + A.hyear() + '/00000', issuedAt: new Date().toISOString() };
+    const img = (key, label, help) => `<div class="field"><span class="lbl">${label}</span>
+      <div class="img-slot">${key === 'logo' ? A.logoHtml() : A.sealHtml()}</div>
+      ${A.can('settings') ? `<div class="row"><label class="btn sm" style="cursor:pointer">${A.icon('download')}${s[key] ? 'تغيير' : 'رفع صورة'}<input type="file" accept="image/*" data-img="${key}" hidden></label>${s[key] ? `<button class="btn sm ghost danger" data-img-rm="${key}">${A.icon('trash')}إزالة</button>` : ''}</div>` : ''}
+      <span class="help">${help}</span></div>`;
     return {
       title: 'الترويسة والترقيم', crumbs: CR,
       html: `
-        <div class="page-head"><div><h1>الترويسة والترقيم</h1><p>بيانات الترويسة الرسمية وصيغة أرقام المعاملات.</p></div></div>
+        <div class="page-head"><div><h1>الترويسة والترقيم</h1><p>بيانات الترويسة الرسمية والشعار والختم وصيغة أرقام المعاملات.</p></div></div>
         ${guard()}
         <div class="split-wide">
           <div class="grid">
             <div class="card"><div class="card-head"><h2>بيانات الترويسة</h2></div><div class="card-body"><div class="form-grid">
               ${F.map(([k, t]) => `<div class="field ${k === 'address' ? 'full' : ''}"><label>${t}</label><input class="input" data-k="${k}" value="${esc(s[k])}" ${A.can('settings') ? '' : 'disabled'}></div>`).join('')}
+            </div></div></div>
+            <div class="card"><div class="card-head"><h2>الشعار والختم</h2></div><div class="card-body"><div class="form-grid">
+              ${img('logo', 'شعار الشركة', 'يظهر في وسط الترويسة. PNG بخلفية شفافة.')}
+              ${img('seal', 'ختم الشركة', 'يظهر بجانب توقيع المعتمد عند الإصدار. إن لم يُرفع يُستخدم ختم مولّد من بيانات الشركة.')}
             </div></div></div>
             <div class="card"><div class="card-head"><h2>صيغة الترقيم</h2></div><div class="card-body flush"><table class="t"><thead><tr><th>النوع</th><th>البادئة</th><th>آخر رقم</th><th>الرقم التالي</th></tr></thead><tbody>
               ${Object.entries(A.LT).map(([k, t]) => `<tr><td>${esc(t.label)}</td><td class="bold">${esc(t.prefix)}</td><td>${A.state.counters[k] || 0}</td><td class="ltr" style="text-align:right">${esc(t.prefix)}/${A.hyear()}/${String((A.state.counters[k] || 0) + 1).padStart(5, '0')}</td></tr>`).join('')}
@@ -127,6 +142,11 @@
         </div>`,
       mount(root) {
         root.querySelectorAll('[data-k]').forEach((i) => i.addEventListener('input', () => { s[i.dataset.k] = i.value; A.save(); root.querySelector('#pv').innerHTML = A.paper(sample); }));
+        root.querySelectorAll('[data-img]').forEach((i) => i.addEventListener('change', () => {
+          A.readImage(i.files[0], i.dataset.img === 'logo' ? 400 : 360).then((url) => { s[i.dataset.img] = url; A.save(); A.toast('حُفظت الصورة'); A.render(); })
+            .catch(() => A.toast('اختر ملف صورة صالحاً', 'alert'));
+        }));
+        root.querySelectorAll('[data-img-rm]').forEach((b) => b.addEventListener('click', () => { delete s[b.dataset.imgRm]; A.save(); A.toast('أُزيلت الصورة'); A.render(); }));
         root.querySelector('#reset').addEventListener('click', () => A.confirm('إعادة ضبط البيانات', 'ستُحذف كل التعديلات وتعود البيانات التجريبية لحالتها الأولى.', 'إعادة الضبط', A.resetData, 'danger'));
       },
     };

@@ -149,6 +149,26 @@
     setTimeout(() => t.remove(), 3600);
   };
 
+  // قراءة صورة مرفوعة وتصغيرها قبل حفظها (يبقي التخزين المحلي خفيفاً)
+  A.readImage = (file, max = 600) => new Promise((resolve, reject) => {
+    if (!file || !/^image\//.test(file.type)) return reject(new Error('type'));
+    const r = new FileReader();
+    r.onerror = reject;
+    r.onload = () => {
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = () => {
+        const k = Math.min(1, max / Math.max(img.width, img.height));
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        resolve(c.toDataURL('image/png'));
+      };
+      img.src = r.result;
+    };
+    r.readAsDataURL(file);
+  });
+
   A.download = (filename, content, type = 'text/csv;charset=utf-8') => {
     const blob = new Blob(['﻿' + content], { type });
     const a = document.createElement('a');
@@ -160,44 +180,93 @@
   };
 
   // ───── ورقة الخطاب الرسمية ─────
+  // مولّد أرقام ثابت لكل نص — يجعل التوقيع التجريبي ورمز التحقق ثابتين لنفس الخطاب
+  const seedOf = (str) => { let h = 2166136261; for (const c of String(str)) h = Math.imul(h ^ c.charCodeAt(0), 16777619) >>> 0; return h; };
+  const rng = (str) => { let h = seedOf(str); return (a, b) => { h = (Math.imul(h, 1103515245) + 12345) >>> 0; return a + ((h >>> 8) % 1000) / 1000 * (b - a); }; };
+  const f1 = (n) => n.toFixed(1);
+
   // رمز تحقق شكلي (يُستبدل لاحقاً برمز QR حقيقي يتحقق من أصالة الخطاب)
   const qr = (seed) => {
-    let h = 0;
-    for (const c of seed) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+    const N = 21, r = rng(seed);
+    const finder = (x, y) => [[0, 0], [N - 7, 0], [0, N - 7]].some(([fx, fy]) => {
+      const dx = x - fx, dy = y - fy;
+      if (dx < -1 || dy < -1 || dx > 7 || dy > 7) return false;
+      return true;
+    });
+    const finderOn = (x, y) => {
+      for (const [fx, fy] of [[0, 0], [N - 7, 0], [0, N - 7]]) {
+        const dx = x - fx, dy = y - fy;
+        if (dx >= 0 && dy >= 0 && dx < 7 && dy < 7) return dx === 0 || dy === 0 || dx === 6 || dy === 6 || (dx >= 2 && dx <= 4 && dy >= 2 && dy <= 4);
+      }
+      return false;
+    };
     let cells = '';
-    for (let y = 0; y < 9; y++) for (let x = 0; x < 9; x++) {
-      const corner = (x < 3 && y < 3) || (x > 5 && y < 3) || (x < 3 && y > 5);
-      h = (h * 1103515245 + 12345) >>> 0;
-      if (corner ? !(x % 2 === 1 && y % 2 === 1 && (x === 1 || x === 7) && (y === 1 || y === 7)) : h % 3 === 0) cells += `<rect x="${x}" y="${y}" width="1" height="1"/>`;
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      const on = finder(x, y) ? finderOn(x, y) : (y === 6 || x === 6) ? (x + y) % 2 === 0 : r(0, 1) < 0.47;
+      if (on) cells += `<rect x="${x}" y="${y}" width="1.02" height="1.02"/>`;
     }
-    return `<svg class="qr" viewBox="-1 -1 11 11" fill="#000">${cells}</svg>`;
+    return `<svg class="qr" viewBox="-1 -1 ${N + 2} ${N + 2}" fill="#000" shape-rendering="crispEdges">${cells}</svg>`;
   };
 
   A.logoChar = () => ((A.state.settings.companyAr.split(' ')[1] || 'ش').replace(/^ال/, '')[0] || 'ش');
+  A.logoHtml = () => (A.state.settings.logo ? `<img class="lh-logo-img" src="${A.state.settings.logo}" alt="">` : `<div class="lh-logo">${esc(A.logoChar())}</div>`);
+
+
+  // توقيع: الصورة المرفوعة لصاحب الصلاحية، وإلا توقيع تجريبي مولّد من اسمه
+  A.signatureHtml = (empId) => {
+    const u = A.user(empId);
+    if (u && u.signature) return `<img class="sig-img" src="${u.signature}" alt="توقيع">`;
+    const r = rng(A.empName(empId));
+    let x = 10, d = `M ${x} ${f1(r(26, 38))}`;
+    while (x < 140) { const nx = x + r(14, 28); d += ` C ${f1(x + r(3, 10))} ${f1(r(4, 56))}, ${f1(nx - r(3, 10))} ${f1(r(4, 56))}, ${f1(nx)} ${f1(r(20, 42))}`; x = nx; }
+    d += ` M ${f1(r(14, 30))} ${f1(r(46, 52))} Q ${f1(r(70, 100))} ${f1(r(54, 62))} ${f1(r(145, 158))} ${f1(r(38, 46))}`;
+    return `<svg class="sig-img" viewBox="0 0 170 64" aria-label="توقيع"><path d="${d}" fill="none" stroke="#1f3b73" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  };
+
+  // ختم الشركة: الصورة المرفوعة من الإعدادات، وإلا ختم دائري مولّد من بيانات الشركة
+  let sealSeq = 0;
+  A.sealHtml = () => {
+    const s = A.state.settings;
+    if (s.seal) return `<img class="seal-img" src="${s.seal}" alt="ختم الشركة">`;
+    const id = 'seal' + (++sealSeq), c = '#1d4e89';
+    return `<svg class="seal-img" viewBox="0 0 120 120" aria-label="ختم الشركة">
+      <defs><path id="${id}" d="M 17 60 A 43 43 0 1 1 103 60"/></defs>
+      <circle cx="60" cy="60" r="57" fill="none" stroke="${c}" stroke-width="2.4"/>
+      <circle cx="60" cy="60" r="52" fill="none" stroke="${c}" stroke-width="0.8"/>
+      <circle cx="60" cy="60" r="30" fill="none" stroke="${c}" stroke-width="1"/>
+      <text fill="${c}" font-family="Arial" font-size="9.5" font-weight="bold"><textPath href="#${id}" startOffset="50%" text-anchor="middle">${esc(s.companyAr)}</textPath></text>
+      <text x="60" y="58" fill="${c}" font-family="Arial" font-size="8.5" font-weight="bold" text-anchor="middle">الختم الرسمي</text>
+      <text x="60" y="70" fill="${c}" font-family="Arial" font-size="7" text-anchor="middle">س.ت ${esc(s.cr)}</text>
+      <text x="60" y="100" fill="${c}" font-family="Arial" font-size="8" text-anchor="middle">★ ★ ★</text>
+    </svg>`;
+  };
 
   A.paper = (l) => {
     const s = A.state.settings;
     const issued = !!l.number && l.type !== 'incoming';
     const lastStep = l.steps && l.steps.length ? l.steps[l.steps.length - 1] : null;
-    const signer = lastStep ? A.emp(lastStep.userId) : A.emp(A.state.workflows[l.type]?.slice(-1)[0]);
+    const signerId = lastStep ? lastStep.userId : A.state.workflows[l.type]?.slice(-1)[0];
+    const signer = A.emp(signerId);
     const deptList = (l.toDepts || []).map(A.deptName);
     const allDepts = (l.toDepts || []).length === A.state.departments.length;
     const v = (x, ph) => (x ? `<span class="v">${esc(x)}</span>` : `<span class="pending">${ph}</span>`);
+    const metaBox = (rows) => `<table class="lh-meta">${rows.map(([k, val]) => `<tr><td class="k">${k}</td><td>${val}</td></tr>`).join('')}</table>`;
+    const stamps = (l.classification && l.classification !== 'عادي' ? `<span class="stamp-tag red">${esc(l.classification)}</span>` : '') +
+      (l.priority && l.priority !== 'عادي' ? `<span class="stamp-tag amber">${esc(l.priority)}</span>` : '');
 
     if (l.type === 'incoming') {
       return `<div class="paper">
-        <div class="lh"><div class="ar">${esc(l.fromEntity)}<div class="sub">جهة خارجية</div></div><div class="lh-logo">${A.icon('building')}</div><div class="en"></div></div>
-        <div class="p-meta"><table>
-          <tr><td class="k">رقم الجهة:</td><td>${v(l.externalRef, '—')}</td></tr>
-          <tr><td class="k">رقم القيد الوارد:</td><td>${v(l.number, '—')}</td></tr>
-          <tr><td class="k">تاريخ الاستلام:</td><td>${v(A.hdate(l.receivedAt), '')}</td></tr>
-        </table></div>
+        <div class="lh">
+          <div class="lh-side lh-stamps">${stamps}</div>
+          <div class="lh-center"><div class="lh-logo">${A.icon('building')}</div><div class="lh-name">${esc(l.fromEntity)}</div><div class="lh-sub">جهة خارجية</div></div>
+          <div class="lh-side">${metaBox([['رقم الجهة:', v(l.externalRef, '—')], ['قيد الوارد:', v(l.number, '—')], ['الاستلام:', v(A.hdate(l.receivedAt), '')]])}</div>
+        </div>
         <div class="p-to"><span>السادة / ${esc(s.companyAr)}</span><span>المحترمين</span></div>
         <div class="mt-s">السلام عليكم ورحمة الله وبركاته، وبعد:</div>
         <div class="p-subject">الموضوع: <span>${esc(l.subject)}</span></div>
         <div class="p-body">${A.paragraphs(l.body)}</div>
         <div class="p-close">وتقبلوا تحياتنا،،،</div>
-        <div class="p-foot"><span>صورة ضوئية من الأصل — مسجّلة في نظام المراسلات</span></div>
+        <div class="p-foot"><div class="p-foot-info"><span>صورة ضوئية من الأصل — مسجّلة في نظام المراسلات</span></div></div>
       </div>`;
     }
 
@@ -223,24 +292,18 @@
       opening = '<div class="mt-s">السلام عليكم ورحمة الله وبركاته، وبعد:</div>';
     }
 
-    const cls = l.classification && l.classification !== 'عادي' ? `<span class="stamp-tag red">${esc(l.classification)}</span>` : '';
-    const pri = l.priority && l.priority !== 'عادي' ? `<span class="stamp-tag amber">${esc(l.priority)}</span>` : '';
     const ccDepts = (l.ccDepts || []).map(A.deptName);
 
     return `<div class="paper ${issued ? '' : 'draft-wm'}">
       <div class="lh">
-        <div class="ar">${esc(s.companyAr)}<div class="sub">سجل تجاري: ${esc(s.cr)}</div></div>
-        <div class="lh-logo">${esc(A.logoChar())}</div>
-        <div class="en">${esc(s.companyEn)}<div class="sub">C.R. ${esc(s.cr)}</div></div>
-      </div>
-      <div class="p-meta">
-        <table>
-          <tr><td class="k">الرقم:</td><td>${v(l.number, 'يُعبّأ آلياً عند الإصدار')}</td></tr>
-          <tr><td class="k">التاريخ:</td><td>${v(issued ? A.hdate(l.issuedAt) : '', 'يُعبّأ آلياً عند الإصدار')}</td></tr>
-          <tr><td class="k">الموافق:</td><td>${v(issued ? A.gdate(l.issuedAt) + ' م' : '', '—')}</td></tr>
-          <tr><td class="k">المرفقات:</td><td>${v(l.attachments && l.attachments.length ? l.attachments.length + ' مرفق' : 'لا يوجد', '')}</td></tr>
-        </table>
-        <div class="p-class">${cls}${pri}</div>
+        <div class="lh-side lh-stamps">${stamps}</div>
+        <div class="lh-center">${A.logoHtml()}<div class="lh-name">${esc(s.companyAr)}</div></div>
+        <div class="lh-side">${metaBox([
+          ['الرقم:', v(l.number, 'عند الإصدار')],
+          ['التاريخ:', v(issued ? A.hdate(l.issuedAt) : '', 'عند الإصدار')],
+          ['الموافق:', v(issued ? A.gdate(l.issuedAt) + 'م' : '', '—')],
+          ['المرفقات:', v(l.attachments && l.attachments.length ? l.attachments.length + ' مرفق' : 'لا يوجد', '')],
+        ])}</div>
       </div>
       ${title}
       ${to}
@@ -250,13 +313,17 @@
       ${closing ? `<div class="p-close">${closing}</div>` : ''}
       <div class="p-sign"><div class="box">
         <div class="ttl">${esc(signer ? signer.job : '')}</div>
-        <div>${esc(signer ? signer.name : '')}</div>
-        ${issued ? `<div class="seal">${qr(l.number)}<span class="ok">معتمد إلكترونياً</span></div>` : '<div class="await">بانتظار اكتمال الاعتماد</div>'}
+        <div class="sig-area">${issued ? A.signatureHtml(signerId) + A.sealHtml() : '<span class="await">يظهر التوقيع والختم عند اكتمال الاعتماد</span>'}</div>
+        <div class="nm">${esc(signer ? signer.name : '')}</div>
       </div></div>
       ${ccDepts.length ? `<div class="p-cc">صورة مع التحية لـ: ${esc(ccDepts.join('، '))}</div>` : ''}
       <div class="p-foot">
-        <span>${esc(s.address)} — هاتف ${esc(s.phone)}</span>
-        <span class="ltr">${esc(s.email)}</span>
+        <div class="p-foot-info">
+          <span>${esc(s.address)}</span>
+          <span>هاتف: <span class="ltr">${esc(s.phone)}</span> — البريد: <span class="ltr">${esc(s.email)}</span></span>
+          <span>السجل التجاري: ${esc(s.cr)} — الرقم الضريبي: ${esc(s.vat)}</span>
+        </div>
+        ${issued ? `<div class="p-foot-qr">${qr(l.number)}<span>امسح للتحقق</span></div>` : ''}
       </div>
     </div>`;
   };
