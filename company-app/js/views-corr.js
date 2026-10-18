@@ -304,7 +304,6 @@
         $('#f-tpl').addEventListener('change', (ev) => {
           const t = TPL[d.type][+ev.target.value];
           if (!t || !t[0]) return;
-          if (d.body.trim() && !confirm('سيُستبدل النص الحالي بالقالب. متابعة؟')) return;
           d.body = t[0]; $('#f-body').value = t[0];
           if (!d.subject) { d.subject = t[1]; $('#f-subject').value = t[1]; }
           preview();
