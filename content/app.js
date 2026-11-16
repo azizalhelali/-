@@ -319,7 +319,7 @@ function pieceHTML(p, inLib) {
     ${tags ? `<div class="tags">${esc(tags)}</div>` : ''}
     <div class="piece-foot">
       <span class="why">${esc(p.icp_reason)}</span>
-      <button class="btn" data-act="copy">نسخ</button>
+      <button class="btn primary" data-act="copy">نسخ</button>
       ${inLib ? '<button class="btn ghost" data-act="del">حذف</button>' : `<button class="btn ghost" data-act="save" ${isSaved ? 'disabled' : ''}>${isSaved ? 'محفوظ ✓' : 'حفظ'}</button>`}
     </div>
   </article>`;

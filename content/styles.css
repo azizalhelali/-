@@ -1,22 +1,14 @@
 /* استوديو المحتوى — عمود واحد، زر واحد، لا تشتيت */
 :root {
-  --bg: #0b0d10; --bg-2: #101319; --bg-3: #161a22;
-  --line: #232833; --line-2: #2e3542;
-  --fg: #e9ecf1; --fg-2: #a3adbd; --fg-3: #6b7686;
-  --accent: #e8b96a; --accent-soft: rgba(232,185,106,.12);
-  --good: #4bb98a; --warn: #e0a34a; --bad: #e0605c;
-  --x: #e9ecf1; --ig: #e1708f; --tt: #5fd3d8;
+  /* أبيض، نص أسود، أزرار مرجانية (أحمر فاتح مائل للبرتقالي) */
+  --bg: #ffffff; --bg-2: #ffffff; --bg-3: #f6f6f6;
+  --line: #ececec; --line-2: #dcdcdc;
+  --fg: #000000; --fg-2: #333333; --fg-3: #777777;
+  --accent: #f4623f; --accent-soft: #fff0eb;
+  --good: #1e8e5a; --warn: #c27a00; --bad: #d93025;
+  --x: #000000; --ig: #c13584; --tt: #0e8f95;
   --r: 14px; --r-s: 9px;
-  --font: "SF Arabic", "Noto Sans Arabic", "Segoe UI", system-ui, -apple-system, sans-serif;
-}
-@media (prefers-color-scheme: light) {
-  :root {
-    --bg: #f7f7f5; --bg-2: #fff; --bg-3: #f0f0ee;
-    --line: #e4e4e0; --line-2: #d2d2cd;
-    --fg: #16181d; --fg-2: #565c66; --fg-3: #8a909b;
-    --accent: #a9741a; --accent-soft: rgba(169,116,26,.1);
-    --x: #16181d; --ig: #c13584; --tt: #0e8f95;
-  }
+  --font: Arial, Helvetica, sans-serif;
 }
 
 * { box-sizing: border-box; }
@@ -43,9 +35,9 @@ main { max-width: 720px; margin: 0 auto; padding: 1rem 16px 5rem; }
   background: var(--bg-3); color: var(--fg); border: 1px solid var(--line-2);
   border-radius: var(--r-s); padding: .5rem 1rem; font: inherit; font-size: .9rem; cursor: pointer;
 }
-.btn.primary { background: var(--accent); color: #16130c; border-color: var(--accent); font-weight: 650; }
+.btn.primary { background: var(--accent); color: #ffffff; border-color: var(--accent); font-weight: 700; }
 .btn.primary:hover { filter: brightness(1.07); }
-.btn.ghost { background: none; border-color: transparent; color: var(--fg-2); }
+.btn.ghost { background: none; border-color: transparent; color: var(--accent); font-weight: 700; }
 .btn.danger { background: none; color: var(--bad); border-color: var(--bad); justify-self: start; margin-top: .25rem; }
 .btn.big { width: 100%; padding: .85rem; font-size: 1.05rem; border-radius: var(--r); }
 .btn:disabled { opacity: .5; cursor: wait; }
@@ -132,7 +124,7 @@ details.more[open] { display: grid; gap: .9rem; }
 
 /* حوار */
 dialog { width: min(460px, calc(100vw - 32px)); padding: 1.25rem; background: var(--bg-2); color: var(--fg); border: 1px solid var(--line-2); border-radius: 18px; }
-dialog::backdrop { background: rgba(0,0,0,.55); }
+dialog::backdrop { background: rgba(0,0,0,.35); }
 .dlg-head { display: flex; justify-content: space-between; align-items: center; }
 
 /* تنبيهات */
