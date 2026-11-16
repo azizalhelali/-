@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#0b0d10">
+<title>استوديو المحتوى</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b0d10'/%3E%3Ctext x='32' y='44' font-size='36' text-anchor='middle' fill='%23e8b96a'%3E%E2%97%88%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+
+<header class="top">
+  <div class="brand"><span class="mark">◈</span><div><strong>استوديو المحتوى</strong><small>X · Instagram · TikTok</small></div></div>
+  <nav class="tabs" role="tablist">
+    <button class="tab active" data-tab="board">اللوحة</button>
+    <button class="tab" data-tab="library">المكتبة <span id="libCount" class="count">0</span></button>
+  </nav>
+  <button class="icon-btn" id="openSettings" title="الإعدادات" aria-label="الإعدادات">⚙</button>
+</header>
+
+<main>
+  <!-- اللوحة -->
+  <section id="tab-board">
+
+    <!-- العميل المثالي -->
+    <div class="card" id="icpCard">
+      <div class="card-head">
+        <h2><span class="step-n">١</span> العميل المثالي</h2>
+        <button class="btn ghost" id="editIcp">تعديل</button>
+      </div>
+      <div id="icpView"></div>
+      <form id="icpForm" class="form hidden">
+        <label>مجالك / ما تقدّمه<input name="niche" placeholder="مثال: استشارات تسويق للمطاعم في الرياض"></label>
+        <label>من هو عميلك المثالي؟<textarea name="who" rows="2" placeholder="العمر، الدور، المرحلة، مستوى الدخل…"></textarea></label>
+        <div class="grid-2">
+          <label>آلامه ومشاكله<textarea name="pains" rows="3"></textarea></label>
+          <label>ما يريد الوصول إليه<textarea name="desires" rows="3"></textarea></label>
+        </div>
+        <div class="grid-2">
+          <label>العرض الذي تبيعه<input name="offer"></label>
+          <label>النبرة واللهجة<input name="voice" placeholder="سعودية بيضاء، مباشرة، بلا مبالغة"></label>
+        </div>
+        <label>لا تستهدف / تجنّب<input name="avoid" placeholder="جمهور يبحث عن المجاني، مواضيع خارج تخصصي…"></label>
+        <div class="row-end"><button type="button" class="btn ghost" id="cancelIcp">إلغاء</button><button class="btn primary">حفظ</button></div>
+      </form>
+    </div>
+
+    <div class="grid-main">
+      <!-- الدراسة -->
+      <div class="card">
+        <div class="card-head">
+          <h2><span class="step-n">٢</span> ادرس الانتشار</h2>
+          <span class="muted small" id="researchDate"></span>
+        </div>
+        <p class="muted small">يبحث في الويب عن الأنماط الأسرع نموًا الآن في مجالك، ثم يصفّيها بعدسة عميلك المثالي.</p>
+        <div class="chips" id="researchPlatforms"></div>
+        <details class="more">
+          <summary>أضف بياناتك (اختياري — أقوى دليل)</summary>
+          <textarea id="ownData" rows="5" placeholder="الصق أفضل منشوراتك أو منشورات منافسين مع أرقامها:&#10;- ريل: «٣ أخطاء…» — 120k مشاهدة، 4k حفظ، 900 مشاركة، +310 متابع&#10;- تغريدة: … — 45k ظهور، 600 إعجاب"></textarea>
+        </details>
+        <button class="btn primary block" id="runResearch">ادرس الآن</button>
+        <div id="researchOut"></div>
+      </div>
+
+      <!-- التوليد -->
+      <div class="card">
+        <div class="card-head"><h2><span class="step-n">٣</span> ولّد المحتوى</h2></div>
+        <div class="chips" id="genPlatforms"></div>
+        <div class="grid-3">
+          <label>الهدف
+            <select id="goal">
+              <option value="growth">نمو — متابعون مناسبون</option>
+              <option value="trust">ثقة — سلطة وخبرة</option>
+              <option value="convert">تحويل — طلبات ومبيعات</option>
+            </select>
+          </label>
+          <label>العدد لكل منصة
+            <select id="count"><option>2</option><option selected>3</option><option>5</option></select>
+          </label>
+          <label>موضوع محدد (اختياري)<input id="topic" placeholder="اتركه فارغًا ليختار"></label>
+        </div>
+        <button class="btn primary block" id="runGen">ولّد</button>
+        <div id="genOut"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- المكتبة -->
+  <section id="tab-library" class="hidden">
+    <div class="card-head">
+      <h2>المكتبة</h2>
+      <div class="chips" id="libFilter"></div>
+    </div>
+    <div id="libOut"></div>
+  </section>
+</main>
+
+<!-- الإعدادات -->
+<dialog id="settings">
+  <form method="dialog" class="form" id="settingsForm">
+    <div class="card-head"><h2>الإعدادات</h2><button class="icon-btn" value="cancel" aria-label="إغلاق">✕</button></div>
+    <label>مفتاح Anthropic API
+      <input name="apiKey" type="password" autocomplete="off" placeholder="sk-ant-…">
+    </label>
+    <label class="check"><input type="checkbox" name="remember"> تذكّر المفتاح على هذا الجهاز</label>
+    <p class="muted small">بدون التذكّر يبقى المفتاح لهذه الجلسة فقط ويُمحى عند إغلاق التبويب. يذهب مباشرةً إلى api.anthropic.com بلا وسيط.</p>
+    <div class="grid-2">
+      <label>النموذج<input name="model" placeholder="claude-opus-5-5"></label>
+      <label>العمق
+        <select name="effort">
+          <option value="medium">متوسط — أسرع</option>
+          <option value="high">عالٍ — أدق</option>
+          <option value="xhigh">أعلى</option>
+        </select>
+      </label>
+    </div>
+    <label class="check"><input type="checkbox" name="webSearch"> البحث في الويب أثناء الدراسة</label>
+    <div class="row-end">
+      <button type="button" class="btn danger" id="wipe">محو كل البيانات</button>
+      <button class="btn primary" value="save">حفظ</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="toast-host" id="toasts"></div>
+<script type="module" src="./app.js"></script>
+</body>
+</html>
