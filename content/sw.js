@@ -1,6 +1,6 @@
 // يجعل التطبيق يفتح بلا اتصال. لا يخزّن أي بيانات مستخدم، ولا يلمس طلبات api.anthropic.com.
-const CACHE = 'studio-v1';
-const SHELL = ['./', './index.html', './styles.css', './app.js', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
+const CACHE = 'studio-v2';
+const SHELL = ['./', './index.html', './styles.css', './app.js', './vault.js', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()).catch(() => self.skipWaiting()));

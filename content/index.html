@@ -6,6 +6,7 @@
 <meta name="color-scheme" content="light">
 <meta name="theme-color" content="#ffffff">
 <title>استوديو المحتوى</title>
+<meta name="description" content="يكتب لك محتوى X وانستقرام وتيك توك موجّهًا لعميلك المثالي.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23f4623f'/%3E%3Ctext x='32' y='44' font-size='36' text-anchor='middle' fill='%23ffffff'%3E%E2%97%88%3C/text%3E%3C/svg%3E">
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./apple-touch-icon.png">
@@ -19,7 +20,7 @@
 
 <header class="top">
   <button class="brand" id="goHome"><span class="mark">◈</span> استوديو المحتوى</button>
-  <div class="top-actions">
+  <div class="top-actions hidden" id="topActions">
     <button class="link" id="goLibrary">المحفوظ <span id="libCount"></span></button>
     <button class="icon-btn" id="openSettings" aria-label="الإعدادات">⚙</button>
   </div>
@@ -27,24 +28,52 @@
 
 <main>
 
-  <!-- الإعداد لأول مرة / تعديل العميل -->
+  <!-- الدخول / إنشاء حساب -->
+  <section id="view-auth" class="hidden">
+    <form id="loginForm" class="form hidden">
+      <h1>أهلًا من جديد</h1>
+      <p class="lead">ادخل حسابك على هذا الجهاز.</p>
+      <label>الحساب<select name="account" id="accountSelect"></select></label>
+      <label>كلمة المرور<input name="password" type="password" dir="ltr" autocomplete="current-password" required></label>
+      <label class="check"><input type="checkbox" name="stay" checked> ابقَ مسجّلًا على هذا الجهاز</label>
+      <button class="btn primary big">دخول</button>
+      <p class="center"><button type="button" class="link" id="toSignup">إنشاء حساب جديد</button></p>
+    </form>
+
+    <form id="signupForm" class="form hidden">
+      <h1>أنشئ حسابك</h1>
+      <p class="lead">بياناتك تُشفَّر بكلمة مرورك وتبقى على جهازك فقط. لا سيرفر، ولا أحد يقدر يوصل لها.</p>
+      <label>اسمك<input name="name" required maxlength="40" autocomplete="nickname"></label>
+      <label>كلمة المرور<input name="password" type="password" dir="ltr" autocomplete="new-password" minlength="8" required placeholder="٨ أحرف على الأقل"></label>
+      <label>أعد كلمة المرور<input name="confirm" type="password" dir="ltr" autocomplete="new-password" required></label>
+      <label class="check"><input type="checkbox" name="stay" checked> ابقَ مسجّلًا على هذا الجهاز</label>
+      <p class="note">احفظ كلمة المرور في مكان آمن: لا يمكن استرجاعها، لأن لا أحد غيرك يملكها.</p>
+      <button class="btn primary big">إنشاء الحساب</button>
+      <p class="center" id="toLoginWrap"><button type="button" class="link" id="toLogin">عندي حساب</button></p>
+    </form>
+  </section>
+
+  <!-- العميل المثالي -->
   <section id="view-setup" class="hidden">
     <h1 id="setupTitle">لمن تكتب؟</h1>
     <p class="lead">مرة وحدة بس. كل شيء بعدها يُكتب لهذا الشخص.</p>
     <form id="icpForm" class="form">
-      <label>مجالك وما تقدّمه<input name="niche" required placeholder="استشارات تسويق للمطاعم في الرياض"></label>
-      <label>عميلك المثالي<textarea name="who" rows="2" placeholder="مالك مطعم جديد، أقل من سنتين، يصرف على الإعلانات ولا يرى نتيجة"></textarea></label>
-      <label>وش يوجعه، ووش يبغى؟<textarea name="pains" rows="2" placeholder="مبيعات ضعيفة، ما يعرف وش ينشر… يبغى طاولات مليانة"></textarea></label>
-      <label>نبرتك<input name="voice" placeholder="سعودية بيضاء، مباشرة، بلا مبالغة"></label>
+      <label>مجالك وما تقدّمه<input name="niche" required placeholder="مثال: متجر عطور، مدرّب لياقة، وكالة تسويق…"></label>
+      <label>عميلك المثالي<textarea name="who" rows="2" placeholder="من هو بالضبط؟ عمره، وضعه، وش يشتغل…"></textarea></label>
+      <label>وش يوجعه، ووش يبغى؟<textarea name="pains" rows="2" placeholder="المشكلة اللي تحلها له، والنتيجة اللي يحلم فيها"></textarea></label>
+      <label>نبرتك<input name="voice" placeholder="مثال: سعودية بيضاء، مباشرة، بلا مبالغة"></label>
       <details class="more">
         <summary>تفاصيل إضافية (اختياري)</summary>
         <label>عرضك<input name="offer"></label>
-        <label>لا تستهدف<input name="avoid" placeholder="الباحثين عن المجاني"></label>
+        <label>لا تستهدف<input name="avoid" placeholder="مثال: الباحثين عن المجاني"></label>
         <label>أرقام أفضل منشوراتك — أقوى دليل للدراسة
           <textarea name="data" rows="4" placeholder="ريل «٣ أخطاء…» — 120k مشاهدة، 4k حفظ، +310 متابع"></textarea>
         </label>
       </details>
-      <label id="keyRow">مفتاح Anthropic API<input name="apiKey" type="password" dir="ltr" autocomplete="off" placeholder="sk-ant-…"></label>
+      <label id="keyRow">مفتاح Anthropic API
+        <input name="apiKey" type="password" dir="ltr" autocomplete="off" placeholder="sk-ant-…">
+        <span class="hint">تحصل عليه من console.anthropic.com — يُحفظ مشفّرًا في حسابك ويذهب مباشرةً إلى Anthropic فقط.</span>
+      </label>
       <div class="row-end">
         <button type="button" class="btn ghost" id="cancelSetup">إلغاء</button>
         <button class="btn primary">حفظ</button>
@@ -81,22 +110,24 @@
 
 <dialog id="settings">
   <form method="dialog" class="form" id="settingsForm">
-    <div class="dlg-head"><h2>الإعدادات</h2><button class="icon-btn" value="cancel" aria-label="إغلاق">✕</button></div>
+    <div class="dlg-head"><h2 id="settingsTitle">الإعدادات</h2><button class="icon-btn" value="cancel" aria-label="إغلاق">✕</button></div>
     <label>مفتاح Anthropic API<input name="apiKey" type="password" dir="ltr" autocomplete="off" placeholder="sk-ant-…"></label>
-    <label class="check"><input type="checkbox" name="remember"> تذكّره على هذا الجهاز</label>
     <label>عدد القطع لكل منصة
       <select name="count"><option>1</option><option>2</option><option>3</option><option>5</option></select>
     </label>
     <details class="more">
       <summary>متقدم</summary>
-      <label>النموذج<input name="model" placeholder="claude-opus-5-5"></label>
+      <label>النموذج<input name="model" dir="ltr" placeholder="claude-opus-5-5"></label>
       <label>العمق
         <select name="effort"><option value="medium">متوسط — أسرع</option><option value="high">عالٍ — أدق</option></select>
       </label>
       <label class="check"><input type="checkbox" name="webSearch"> البحث في الويب عند الدراسة</label>
-      <button type="button" class="btn danger" id="wipe">محو كل البيانات</button>
+      <button type="button" class="btn danger" id="deleteAccount">حذف حسابي وكل بياناته</button>
     </details>
-    <div class="row-end"><button class="btn primary" value="save">حفظ</button></div>
+    <div class="row-between">
+      <button type="button" class="btn ghost" id="logout">تسجيل الخروج</button>
+      <button class="btn primary" value="save">حفظ</button>
+    </div>
   </form>
 </dialog>
 

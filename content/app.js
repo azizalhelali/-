@@ -1,5 +1,7 @@
 // استوديو المحتوى — عمود واحد، زر واحد.
-// البيانات في متصفحك فقط. الاتصال الوحيد للخارج: api.anthropic.com عند ضغطك «اكتب لي».
+// كل مستخدم له حساب مشفّر على جهازه. لا سيرفر.
+// الاتصال الوحيد للخارج: api.anthropic.com بمفتاح المستخدم نفسه، عند ضغطه «اكتب لي».
+import * as vault from './vault.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -13,30 +15,32 @@ const GOALS = {
 };
 const RESEARCH_TTL = 7 * 24 * 3600 * 1000; // تُحدَّث الدراسة تلقائيًا كل أسبوع
 
-/* ---------- التخزين ---------- */
-const KEY = 'studio.v1';
-const SECRET = 'studio.key';
-const saved = (() => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } })();
-const state = {
-  icp: saved.icp || null,
-  research: saved.research || null,
-  generated: saved.generated || [],
-  library: saved.library || [],
-  settings: { model: 'claude-opus-5-5', effort: 'high', webSearch: true, remember: false, count: 3, ...saved.settings },
-  ui: { platforms: [...ALL], goal: 'growth', tab: 'all', libTab: 'all', ...saved.ui },
-};
+/* ---------- الحالة (تُحمَّل بعد الدخول) ---------- */
+function fresh(saved = {}) {
+  return {
+    apiKey: saved.apiKey || '',
+    icp: saved.icp || null,
+    research: saved.research || null,
+    generated: saved.generated || [],
+    library: saved.library || [],
+    settings: { model: 'claude-opus-5-5', effort: 'high', webSearch: true, count: 3, ...saved.settings },
+    ui: { platforms: [...ALL], goal: 'growth', tab: 'all', libTab: 'all', ...saved.ui },
+  };
+}
+let state = fresh();
+
+let saveTimer = null;
 function save() {
-  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch { toast('تعذّر الحفظ في المتصفح', true); }
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(flush, 250);
 }
-function getKey() {
-  try { return sessionStorage.getItem(SECRET) || localStorage.getItem(SECRET) || ''; } catch { return ''; }
+async function flush() {
+  clearTimeout(saveTimer);
+  try { await vault.persist(state); } catch { toast('تعذّر الحفظ', true); }
 }
-function setKey(k, remember) {
-  try {
-    sessionStorage.removeItem(SECRET); localStorage.removeItem(SECRET);
-    if (k) (remember ? localStorage : sessionStorage).setItem(SECRET, k);
-  } catch { /* تجاهل */ }
-}
+document.addEventListener('visibilitychange', () => { if (document.hidden) flush(); });
+
+const getKey = () => state.apiKey;
 
 /* ---------- مساعدات ---------- */
 function toast(msg, bad = false) {
@@ -69,28 +73,98 @@ function seg(el, items, get, set) {
 
 /* ---------- التنقل ---------- */
 function show(view) {
-  for (const v of ['setup', 'home', 'library']) $(`#view-${v}`).classList.toggle('hidden', v !== view);
+  for (const v of ['auth', 'setup', 'home', 'library']) $(`#view-${v}`).classList.toggle('hidden', v !== view);
+  $('#topActions').classList.toggle('hidden', !vault.account());
   if (view === 'library') renderLibrary();
   window.scrollTo(0, 0);
 }
 const ready = () => Boolean(state.icp?.niche && getKey());
-$('#goHome').onclick = () => show(ready() ? 'home' : 'setup');
+const goHome = () => (!vault.account() ? showAuth() : ready() ? (renderHome(), show('home')) : openSetup());
+$('#goHome').onclick = goHome;
 $('#goLibrary').onclick = () => show('library');
 
-/* ---------- العميل المثالي (الإعداد) ---------- */
+/* ---------- الحسابات ---------- */
+function showAuth(mode) {
+  const list = vault.listAccounts();
+  const signup = mode === 'signup' || !list.length;
+  $('#loginForm').classList.toggle('hidden', signup);
+  $('#signupForm').classList.toggle('hidden', !signup);
+  $('#toLoginWrap').classList.toggle('hidden', !list.length);
+  $('#accountSelect').innerHTML = list.map((a) => `<option value="${esc(a.id)}">${esc(a.name)}</option>`).join('');
+  for (const f of [$('#loginForm'), $('#signupForm')]) f.querySelectorAll('input[type=password]').forEach((i) => { i.value = ''; });
+  show('auth');
+  (signup ? $('#signupForm').elements.name : $('#loginForm').elements.password).focus();
+}
+$('#toSignup').onclick = () => showAuth('signup');
+$('#toLogin').onclick = () => showAuth('login');
+
+function busy(form, on, label) {
+  const b = form.querySelector('.btn.primary');
+  b.disabled = on;
+  if (on) { b.dataset.label = b.textContent; b.textContent = label; } else if (b.dataset.label) b.textContent = b.dataset.label;
+}
+
+/** بيانات من نسخة سابقة غير مشفّرة على هذا الجهاز — تُنقل لأول حساب ثم تُمحى */
+function takeLegacy() {
+  try {
+    const old = JSON.parse(localStorage.getItem('studio.v1'));
+    const key = sessionStorage.getItem('studio.key') || localStorage.getItem('studio.key');
+    if (!old && !key) return {};
+    localStorage.removeItem('studio.v1'); localStorage.removeItem('studio.key'); sessionStorage.removeItem('studio.key');
+    const { remember, ...settings } = old?.settings || {};
+    return { ...old, settings, apiKey: key || '' };
+  } catch { return {}; }
+}
+
+$('#signupForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const f = e.target;
+  const name = f.elements.name.value.trim();
+  const pw = f.elements.password.value;
+  if (pw !== f.elements.confirm.value) return toast('كلمتا المرور غير متطابقتين', true);
+  busy(f, true, 'يجهّز حسابك…');
+  try {
+    const data = await vault.createAccount(name, pw, f.elements.stay.checked, vault.listAccounts().length ? {} : takeLegacy());
+    state = fresh(data);
+    await flush();
+    goHome();
+  } catch (err) { toast(err.message, true); } finally { busy(f, false); }
+};
+
+$('#loginForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const f = e.target;
+  busy(f, true, 'يفتح…');
+  try {
+    state = fresh(await vault.login(f.elements.account.value, f.elements.password.value, f.elements.stay.checked));
+    goHome();
+  } catch (err) { toast(err.message, true); f.elements.password.select(); } finally { busy(f, false); }
+};
+
+async function signOut() {
+  await flush();
+  await vault.logout();
+  state = fresh();
+  $('#results').innerHTML = ''; $('#status').innerHTML = '';
+  showAuth('login');
+}
+
+/* ---------- العميل المثالي ---------- */
 const ICP_FIELDS = [
   ['niche', 'المجال'], ['who', 'العميل المثالي'], ['pains', 'آلامه ورغباته'], ['desires', 'ما يريده'],
   ['voice', 'النبرة'], ['offer', 'العرض'], ['avoid', 'لا تستهدف'],
 ];
+const FORM_FIELDS = ['niche', 'who', 'pains', 'voice', 'offer', 'avoid', 'data'];
 const icpText = () => ICP_FIELDS.filter(([k]) => state.icp?.[k]).map(([k, l]) => `${l}: ${state.icp[k]}`).join('\n');
 
 function openSetup() {
   const f = $('#icpForm');
   const first = !state.icp?.niche;
   $('#setupTitle').textContent = first ? 'لمن تكتب؟' : 'عميلك المثالي';
-  $('#cancelSetup').classList.toggle('hidden', first);
+  $('#cancelSetup').classList.toggle('hidden', first || !getKey());
   $('#keyRow').classList.toggle('hidden', Boolean(getKey()));
-  for (const k of ['niche', 'who', 'pains', 'voice', 'offer', 'avoid', 'data']) f.elements[k].value = state.icp?.[k] || '';
+  for (const k of FORM_FIELDS) f.elements[k].value = state.icp?.[k] || '';
+  f.elements.apiKey.value = '';
   show('setup');
   f.elements.niche.focus();
 }
@@ -101,10 +175,10 @@ $('#icpForm').onsubmit = (e) => {
   const f = e.target;
   const prev = state.icp || {};
   const next = { ...prev };
-  for (const k of ['niche', 'who', 'pains', 'voice', 'offer', 'avoid', 'data']) next[k] = f.elements[k].value.trim();
+  for (const k of FORM_FIELDS) next[k] = f.elements[k].value.trim();
   const key = f.elements.apiKey.value.trim();
   if (!getKey() && !key) return toast('أضف مفتاح API', true);
-  if (key) setKey(key, state.settings.remember);
+  if (key) state.apiKey = key;
   // تغيّر العميل = دراسة جديدة
   if (prev.niche !== next.niche || prev.who !== next.who || prev.data !== next.data) state.research = null;
   state.icp = next;
@@ -153,7 +227,7 @@ async function claude({ system, user, schema = null, search = false }) {
       let detail = '';
       try { detail = (await res.json())?.error?.message || ''; } catch { /* تجاهل */ }
       if (res.status === 400 && useFallback && /fallback/i.test(detail)) { useFallback = false; turn--; continue; }
-      if (res.status === 401) throw new Error('مفتاح API غير صالح.');
+      if (res.status === 401) throw new Error('مفتاح API غير صالح. غيّره من الإعدادات.');
       if (res.status === 429) throw new Error('تجاوزت حد الطلبات. أعد المحاولة بعد قليل.');
       if (res.status >= 500) throw new Error('خدمة النموذج غير متاحة حاليًا.');
       throw new Error(detail || `فشل الطلب (${res.status})`);
@@ -311,7 +385,7 @@ $('#topic').onkeydown = (e) => { if (e.key === 'Enter') run(); };
 function pieceHTML(p, inLib) {
   const tags = (p.hashtags || []).map((t) => (t.startsWith('#') ? t : '#' + t)).join(' ');
   const isSaved = state.library.some((x) => x.id === p.id);
-  return `<article class="piece" data-id="${p.id}">
+  return `<article class="piece" data-id="${esc(p.id)}">
     <div class="piece-meta">${plat(p.platform)} · ${esc(p.format)}<span class="score" title="احتمال النمو المؤهَّل">${Number(p.score) || 0}</span></div>
     <div class="hook">${esc(p.hook)}</div>
     <div class="text">${esc(p.body)}</div>
@@ -370,8 +444,8 @@ document.addEventListener('click', async (e) => {
 const dlg = $('#settings');
 function openSettings() {
   const f = $('#settingsForm'), s = state.settings;
+  $('#settingsTitle').textContent = vault.account()?.name || 'الإعدادات';
   f.elements.apiKey.value = getKey();
-  f.elements.remember.checked = s.remember;
   f.elements.count.value = String(s.count);
   f.elements.model.value = s.model;
   f.elements.effort.value = s.effort;
@@ -383,39 +457,48 @@ dlg.addEventListener('close', () => {
   if (dlg.returnValue !== 'save') return;
   const f = $('#settingsForm');
   state.settings = {
-    remember: f.elements.remember.checked,
     count: Number(f.elements.count.value) || 3,
     model: f.elements.model.value.trim() || 'claude-opus-5-5',
     effort: f.elements.effort.value,
     webSearch: f.elements.webSearch.checked,
   };
-  setKey(f.elements.apiKey.value.trim(), state.settings.remember);
+  state.apiKey = f.elements.apiKey.value.trim();
   save(); toast('حُفظت');
   if (!ready()) openSetup();
 });
-$('#wipe').onclick = () => {
-  if (!confirm('سيُمحى كل شيء من هذا المتصفح. متأكد؟')) return;
-  try { localStorage.removeItem(KEY); } catch { /* تجاهل */ }
-  setKey('', false);
-  location.reload();
+$('#logout').onclick = () => { dlg.close(); signOut(); };
+$('#deleteAccount').onclick = async () => {
+  if (!confirm('سيُحذف حسابك وكل بياناته من هذا الجهاز نهائيًا. متأكد؟')) return;
+  dlg.close();
+  clearTimeout(saveTimer);
+  await vault.deleteAccount();
+  state = fresh();
+  toast('حُذف الحساب');
+  showAuth();
 };
 
 /* ---------- التشغيل ---------- */
 function renderHome() {
   $('#forWho').textContent = state.icp?.who || state.icp?.niche || '';
+  $('#libCount').textContent = state.library.length || '';
   renderBasis();
   renderResults();
+  renderSegs();
 }
-seg($('#platforms'), ALL.map((p) => [p, plat(p)]), () => state.ui.platforms, (k) => {
-  const s = new Set(state.ui.platforms);
-  if (s.has(k) && s.size === 1) return toast('منصة وحدة على الأقل');
-  s.has(k) ? s.delete(k) : s.add(k);
-  state.ui.platforms = ALL.filter((p) => s.has(p));
-});
-seg($('#goal'), Object.entries(GOALS).map(([k, g]) => [k, g.label]), () => state.ui.goal, (k) => { state.ui.goal = k; });
+function renderSegs() {
+  seg($('#platforms'), ALL.map((p) => [p, plat(p)]), () => state.ui.platforms, (k) => {
+    const s = new Set(state.ui.platforms);
+    if (s.has(k) && s.size === 1) return toast('منصة وحدة على الأقل');
+    s.has(k) ? s.delete(k) : s.add(k);
+    state.ui.platforms = ALL.filter((p) => s.has(p));
+  });
+  seg($('#goal'), Object.entries(GOALS).map(([k, g]) => [k, g.label]), () => state.ui.goal, (k) => { state.ui.goal = k; });
+}
 
-$('#libCount').textContent = state.library.length || '';
-if (ready()) { renderHome(); show('home'); } else openSetup();
+(async () => {
+  const data = await vault.resume();
+  if (data) { state = fresh(data); goHome(); } else showAuth();
+})();
 
 // العمل بلا اتصال وإمكانية التثبيت على الجوال
 if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('./sw.js').catch(() => {});
