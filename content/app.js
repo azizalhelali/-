@@ -416,3 +416,6 @@ seg($('#goal'), Object.entries(GOALS).map(([k, g]) => [k, g.label]), () => state
 
 $('#libCount').textContent = state.library.length || '';
 if (ready()) { renderHome(); show('home'); } else openSetup();
+
+// العمل بلا اتصال وإمكانية التثبيت على الجوال
+if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('./sw.js').catch(() => {});
